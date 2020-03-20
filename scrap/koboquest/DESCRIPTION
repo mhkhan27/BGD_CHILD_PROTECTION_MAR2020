@@ -1,0 +1,28 @@
+Package: koboquest
+Title: Reads and understands kobo questionnaires
+Version: 1.0.1
+Authors@R: c(
+    person("Martin", "Barner", email = "martin.barner@impact-initiatives.org", role = c("aut", "cre")),
+    person("Zack", "Arno", email = "zack.arno@reach-initiative.org", role = "aut"))
+Description: Use kobo questionnaires to identify data types, parse skip logic and apply labels. 
+Depends: data.table, dplyr, magrittr, stringi, stringr, utils
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.1.1
+Suggests: testthat
+RemoteType: github
+RemoteHost: api.github.com
+RemoteRepo: koboquest
+RemoteUsername: mabafaba
+RemoteRef: master
+RemoteSha: bf67c7dfd6369c779cfe944034c7626164d79480
+GithubRepo: koboquest
+GithubUsername: mabafaba
+GithubRef: master
+GithubSHA1: bf67c7dfd6369c779cfe944034c7626164d79480
+NeedsCompilation: no
+Packaged: 2020-03-11 07:07:26 UTC; MEHEDI
+Author: Martin Barner [aut, cre],
+  Zack Arno [aut]
+Maintainer: Martin Barner <martin.barner@impact-initiatives.org>

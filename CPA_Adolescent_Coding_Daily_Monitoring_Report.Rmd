@@ -1,0 +1,462 @@
+---
+title: "CPA Daily Monitoring Report(Adolescent)"
+author: "MH Khan"
+date: "`r format(Sys.time(), '%d %B, %Y, %H:%M ')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    theme: paper
+---
+
+
+```{r include=FALSE, warning = FALSE, message=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE,
+                      message=FALSE,
+                      warning = FALSE)
+
+library(dplyr)
+library(sf)
+library(HighFrequencyChecks)
+library(srvyr)
+library(anytime)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(lubridate)
+library(rgdal)
+library(HighFrequencyChecks)
+library(kableExtra)
+library(gsubfn)
+library(stringi)
+library(data.table)
+library(sf)
+# library(GISutils)
+library(tmap)
+library(butteR)
+library(AMR)
+source("Functions/GIS_Project_Functions.R")
+source("Functions/Load_Audit.R")
+source("Functions/get_na_response_rates.R")
+
+
+#load data
+
+camp_boundary_gdb<- "D:\\mh1\\REACH\\Common_shape_files\\190310_outline_rohingya_refugee_camp_a1"
+camp_boundary<-st_read(dsn=camp_boundary_gdb,layer ="190310_Outline_Rohingya_Refugee_Camp_A1" )
+data_path <- "D:\\mh1\\REACH\\cpp\\CPP\\04 Data\\01_adolescent\\01_data_collection/"
+# dropbox_hh_path <- paste0(dropbox_path,"daily_data\\",str_replace_all(ymd(day_to_run),"-","_"),"_hh_Data.csv")
+date_log_path <- "D:\\mh1\\REACH\\cpp\\CPP\\Output\\date_log/adolescent/date_logger.csv"
+hh <- read.csv(paste0(data_path,"daily_data/","HH.csv"))
+indv <- read.csv(paste0(data_path,"daily_data/","indv.csv"))
+long_lat<-c("X_gps_reading_longitude","X_gps_reading_latitude")
+target_points <- st_read("Output/sampling/kml/Adol/round1/merge_adol_finalV3.kml")
+buffer <-25
+
+############################date log##############################
+
+hh$reported_date <- ymd(substr(hh$survey_start,1,10))
+date_log_full<- hh %>% select(X_index,X_uuid,reported_date)
+
+if(write_csv_output=="yes"){
+date_log_track <- paste0("D:\\mh1\\REACH\\cpp\\CPP\\Output\\date_log/adolescent/",str_replace_all(day_to_run,"-","_"),"_date_logger.csv") 
+write.csv(date_log_full,date_log_path,row.names=FALSE)
+file.copy(from = date_log_path,to = date_log_track,overwrite = T)
+}
+```
+
+```{r include=TRUE, warning = FALSE, message=FALSE}
+
+hh_spatial <- st_as_sf(hh,coords = long_lat) %>% st_set_crs(4326)
+hh_spatial_corrected <- hh_spatial %>% st_join(camp_boundary,st_intersects)  
+hh_spatial_corrected_yes_consent <- hh_spatial_corrected %>% dplyr::filter(consent == "yes")
+hh_spatial_corrected_yes_consent_df <- hh_spatial_corrected_yes_consent %>% as.data.frame() %>% select(-contains("gps")) %>%  select(-"geometry")
+
+hh_spatial_corrected_desensitize <- hh_spatial_corrected %>% as.data.frame() %>% select(-"geometry")  %>% select(-contains("gps"))
+
+hh_to_output_path <- "C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70DYL - UNICEF (Child Protection)\\04 Data\\01_adolescent/01_data_collection\\daily_data/"
+
+if(write_csv_output == "yes"){
+write.csv(hh_spatial_corrected_desensitize,paste0(hh_to_output_path,str_replace_all(day_to_run,"-","_"),"_HH.csv"))
+write.csv(indv,paste0(hh_to_output_path,str_replace_all(day_to_run,"-","_"),"_INDV.csv"))
+}
+```
+
+## Progress Tracking
+Total number of survey so far is **`r nrow(hh)`**.
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+sample_size <- read.csv("Inputs/Sampling/adol/kmz_sample_request_CP adol survey_happening_all.csv") 
+sample_size <- sample_size %>% dplyr::filter(sample_size$number_points_w_buffer != "" )
+
+complete_by_camp<-hh_spatial_corrected %>% 
+  group_by(New_Camp_N) %>% 
+  summarise(
+    num_complete=sum(consent =="yes"),
+    num_consent_no=sum(consent =="no"),
+    num_not_shelter = sum(consent =="shelter_not"),
+    num_not_respondent = sum(consent =="respondent_not"),
+    number_pts=n()) %>% 
+  full_join(sample_size,by=c("New_Camp_N"= "New_Camp_N"), all.x=TRUE, all.y=TRUE) %>% 
+  mutate(
+    points_visited=ifelse(is.na(number_pts),0,number_pts),
+    number_complete= ifelse(is.na(num_complete),0,num_complete),
+    number_consent_no= ifelse(is.na(num_consent_no),0,num_consent_no),
+    number_shelter_not= ifelse(is.na(num_not_shelter),0,num_not_shelter),
+    number_respondent_not= ifelse(is.na(num_not_respondent),0,num_not_respondent),
+    points_needed=points_needed,
+    points_remaining=points_needed-number_complete,
+  ) %>% 
+select(New_Camp_N,points_needed, number_points_w_buffer,points_visited, number_complete ,points_remaining, number_consent_no,number_shelter_not,number_respondent_not)%>% 
+  arrange(New_Camp_N) %>% as.data.frame() %>% select(-"geometry")
+
+#total number of survey by date 
+survey_by_date <- hh %>% dplyr::group_by(reported_date) %>% dplyr::summarise(
+  number_of_survey = n()
+)
+
+survey_by_date %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Total number of survey by date ") %>% kable_styling(position = "center")
+
+complete_by_camp %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Tracking sheet (NA means the points fall outside the camp boundary) ") %>% kable_styling(position = "center")
+```
+
+## GIS Checks
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+ 
+distance <- butteR::check_distances_from_target(dataset = hh_spatial_corrected ,target_points = target_points,dataset_coordinates = long_lat, cols_to_report = c("reported_date","New_Camp_N", "X_uuid","enumerator_id"), distance_threshold = buffer)
+
+distance %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys fall outside of 25m from the assigned GPS point ") %>% kable_styling(position = "center")
+
+
+```
+
+
+## Duration 
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+path_unzip <- "Inputs\\adolescent\\98_temp"
+audit_zip_dir<-"D:\\mh1\\REACH\\cpp\\CPP\\04 Data\\01_adolescent\\01_data_collection\\01_audit"
+audit_zipfile <-paste0(audit_zip_dir,"/aFNiyg82tm8nVLwuQawJr6_",str_replace_all(day_to_run,"-","_"),".zip")
+copy_zip_to<-paste0("D:\\mh1\\REACH\\cpp\\CPP\\Inputs\\adolescent\\01_audit/",day_to_run,".zip")
+audit_node<-"/aFNiyg82tm8nVLwuQawJr6/"
+
+audit_yes<-Load_Audit(data=hh, 
+                      path.to.zip = audit_zipfile,
+                      path.to.unzip = path_unzip,
+                      copy.zip = TRUE,
+                      path.to.copy.zip = copy_zip_to,
+                      delete.unzipped=TRUE
+)
+
+#########last eituku porjnto dekhc
+
+dfl<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"consent")& !is.na(event)) %>% 
+    select(end) 
+  start_question<-min(start_question$end)
+  end_question<-d %>% filter(node==paste0(audit_node,"meta_data/end_interview")& !is.na(node)) %>% 
+    select(start)
+  end_question<-max(end_question$start)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl[[i]]<-data.frame(uuid=names(audit_yes)[i],duration_ms=duration_ms,durations_secs=duration_secs,duration_minutes= duration_minutes)
+}
+
+duration_df2<-do.call("rbind", dfl)
+
+htdf<-hh_spatial_corrected_yes_consent %>%  
+  left_join(duration_df2, by= c("X_uuid"="uuid")) %>% as.data.frame()
+
+is.na(htdf$duration_minutes) <- sapply(htdf$duration_minutes,is.infinite) #inf or -inf to NA
+
+```
+
+### Duration Statistics
+Statistics on survey duration are calculated from the audit file and are now correct.
+
+The mean time for a completed questionaire so far is **`r mean(htdf$duration_minutes, na.rm=TRUE)`**.
+
+The median time for a completed questionaire so far is **`r median(htdf$duration_minutes, na.rm=TRUE)`**.
+
+
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+# quick_surveys<-htdf[htdf$duration_minutes< mindur,]
+
+mindur <- 30
+quick_surveys<-htdf %>% filter(duration_minutes < mindur)
+
+quick_survey_daily<-quick_surveys %>% group_by(reported_date, enumerator_id) %>% 
+  select(reported_date, enumerator_id, X_uuid,duration_minutes, New_Camp_N) %>% arrange(reported_date)
+
+quick_survey_information<-data.frame(quick_surveys$enumerator_id,quick_surveys$X_uuid, quick_surveys$duration_minutes)
+
+duration_by_enumerator <- htdf %>%
+  mutate(zscore = scale(duration_minutes),
+  zscoreLog = scale(log(duration_minutes))) %>%
+  group_by(enumerator_id) %>%
+  summarise(
+  number_surveys=n(),  
+  mean_duration = mean(duration_minutes, na.rm = TRUE),
+  median_duration = median(duration_minutes, na.rm=TRUE)
+  ) %>%
+  ungroup %>%
+  mutate(
+  difference_from_mean = mean_duration - mean(htdf$duration_minutes,na.rm=TRUE),
+  difference_from_median = median_duration - median(htdf$duration_minutes,na.rm=TRUE)
+  )
+
+
+quick_survey_daily%>% kable( longtable = T, booktabs = T, linesep = "",caption= paste0("Enumerators That Completed a Full Survey In Less Than ",mindur, " minutes")) %>% kable_styling(position = "center")
+
+duration_by_enumerator%>% kable( longtable = T, booktabs = T, linesep = "",caption= "Duration Statistics By Enumerator (minutes)") %>% kable_styling(position = "center")
+
+```
+
+### Consent
+```{r eval=TRUE, echo=FALSE, results='asis'}
+#Identify any surveys in which time spent on consent is less than 45 seconds 
+dfl1<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"consent_message")& !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"consent_message")& !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl1[[i]]<-data.frame(uuid=names(audit_yes)[i],consent_duration_ms=duration_ms,
+                        consent_durations_secs=duration_secs,
+                        consent_duration_minutes= duration_minutes)
+}
+
+duration_df3<-do.call("rbind", dfl1)
+
+htdf1<-hh_spatial_corrected_yes_consent %>%  
+  left_join(duration_df3, by= c("X_uuid"="uuid")) %>% as.data.frame()
+
+is.na(htdf1$consent_duration_minutes) <- sapply(htdf1$consent_duration_minutes,is.infinite)
+
+# quick_surveys<-htdf[htdf$duration_minutes< mindur,]
+
+mindur1 <- 45
+quick_surveys<-htdf1 %>% filter(consent_durations_secs < mindur1)
+
+
+quick_survey_daily<-quick_surveys %>% group_by(reported_date, enumerator_id) %>% 
+  select(reported_date, enumerator_id, X_uuid,consent_durations_secs, New_Camp_N) %>% arrange(reported_date)
+
+
+quick_survey_daily%>% kable( longtable = T, booktabs = T, linesep = "",caption= paste0("Enumerators who spent Less Than ",mindur1, " seconds on consent")) %>% kable_styling(position = "center")
+
+```
+
+### HarmThreats
+```{r eval=TRUE, echo=FALSE, results='asis'}
+#Identify any surveys in which time spent on consent is less than 45 seconds 
+dfl4<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"meta_data/harmthreats/witness_threats")& !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"meta_data/harmthreats/witness_threats")& !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl4[[i]]<-data.frame(uuid=names(audit_yes)[i],harmthreats_duration_ms=duration_ms,
+                        harmthreats_durations_secs=duration_secs,
+                        harmthreats_duration_minutes= duration_minutes)
+}
+
+duration_df4<-do.call("rbind", dfl4)
+
+htdf4<-hh_spatial_corrected_yes_consent %>%  
+  left_join(duration_df4, by= c("X_uuid"="uuid")) %>% as.data.frame()
+
+is.na(htdf4$harmthreats_durations_secs) <- sapply(htdf4$harmthreats_durations_secs,is.infinite)
+
+# quick_surveys<-htdf[htdf$duration_minutes< mindur,]
+
+mindur4 <- 45
+quick_harmthreat<-htdf4 %>% filter(harmthreats_durations_secs < mindur4)
+
+quick_harmthreat_survey<-quick_harmthreat %>% group_by(reported_date, enumerator_id) %>% 
+  select(reported_date, enumerator_id, X_uuid,harmthreats_durations_secs, New_Camp_N) %>% arrange(reported_date)
+
+quick_harmthreat_survey %>% kable( longtable = T, booktabs = T, linesep = "",caption= paste0("Enumerators who spent less than ",mindur4, " seconds on threats question")) %>% kable_styling(position = "center")
+
+```
+
+### servicehelp
+```{r eval=TRUE, echo=FALSE, results='asis'}
+#Identify any surveys in which time spent on consent is less than 45 seconds 
+dfl5<-list()
+for (i in 1: length(audit_yes)){
+  d<-audit_yes[[i]]
+  start_question<- d %>% filter(node==paste0(audit_node,"meta_data/serviceshelp/rank_unmet_needs")& !is.na(event)) %>% 
+    select(start) 
+  start_question<-min(start_question$start)
+  end_question<-d %>% filter(node==paste0(audit_node,"meta_data/serviceshelp/rank_unmet_needs")& !is.na(node)) %>% 
+    select(end)
+  end_question<-max(end_question$end)
+  duration_ms<-end_question-start_question
+  duration_secs<-duration_ms/1000
+  duration_minutes<- round(duration_secs/60,1)
+  dfl5[[i]]<-data.frame(uuid=names(audit_yes)[i],srvchlp_duration_ms=duration_ms,
+                        srvchlp_durations_secs=duration_secs,
+                        srvchlp_duration_minutes= duration_minutes)
+}
+
+duration_df5<-do.call("rbind", dfl5)
+
+htdf5<-hh_spatial_corrected_yes_consent %>%  
+  left_join(duration_df5, by= c("X_uuid"="uuid")) %>% as.data.frame()
+
+is.na(htdf5$srvchlp_durations_secs) <- sapply(htdf5$srvchlp_durations_secs,is.infinite)
+
+
+
+mindur5 <- 25
+quick_srvchlp<-htdf5 %>% filter(srvchlp_durations_secs < mindur5)
+
+
+quick_srvchlp_survey<-quick_srvchlp %>% group_by(reported_date, enumerator_id) %>% 
+  select(reported_date, enumerator_id, X_uuid,srvchlp_durations_secs, New_Camp_N) %>% arrange(reported_date)
+
+
+quick_srvchlp_survey %>% kable( longtable = T, booktabs = T, linesep = "",caption= paste0("Enumerators who spent less than ",mindur5, " seconds on unmet needs question ")) %>% kable_styling(position = "center")
+
+```
+
+### Daily Act
+```{r eval=TRUE, echo=FALSE, results='asis'}
+paid_per_day <- hh_spatial_corrected_yes_consent_df %>% dplyr::filter(resp_work_pay > 500) %>% select(reported_date, enumerator_id, X_uuid, New_Camp_N,resp_work_pay)
+
+ irregular_at_learning_center <- hh_spatial_corrected_yes_consent_df %>% dplyr::filter( resp_activities_7 == "yes" & access_lc == "no") %>% select(reported_date, enumerator_id, X_uuid, New_Camp_N)
+ 
+paid_per_day %>% kable( longtable = T, booktabs = T, linesep = "",caption="Surveys in which amount earned is more than 500 takas") %>% kable_styling(position = "center")
+
+irregular_at_learning_center %>% kable( longtable = T, booktabs = T, linesep = "",caption="Surveys in which respondent says they attend a learning center for daily activities question but no to if they have attended a learning center in past 30 days") %>% kable_styling(position = "center")
+
+```
+
+## Enumerator
+```{r warning = FALSE, message=FALSE}
+#total col 37+22 =59
+col_name_enu_si <- c("close_hc", "access_hc", "permission_hc", "yesno_challenges_hc", 
+"access_lc", "permission_lc", "yesno_challenges_lc", "access_cp", 
+"permission_cp", "yesno_challenges_cp", "camp_safe", "work_chores", 
+"work_shelter", "work_phys_chores", "work_sibs", "work_outside", 
+"work_dang", "work_constr", "work_stop_school", "marr_par", "marr_dowry", 
+"marr_burden", "marr_safe", "marr_drop_school_girl", "marr_drop_school_boy", 
+"marr_old_man", "marr_mom", "vio_fath", "vio_moth", "vio_discipline", 
+"vio_husb", "vio_wife", "vio_teach", "vio_solve_prob", "negl_misbehave", 
+"negl_stress", "negl_needs")
+ 
+ 
+col_name_enu_multiple <- c("seek_treat.dontknow_prefer_not_answer", "not_seek_treat.dont_know", 
+"who_permission_hc.dont_know", "if_challenges_hc.dont_know", 
+"attend_a_learning_center.dont_know", "who_permission_lc.dont_know", 
+"challenges_lc.dont_know", "child_protection_services.dont_know", 
+"who_permission_cp.dont_know", "challenges_cp.dont_want_to_answer", 
+"ask_help.dont_know", "ask_stress.dont_know", "ask_unsafe.dont_know", 
+"ask_unsafe_outside.dont_know", "ask_physical_assistance.dont_know", 
+"threats_30.dont_know", "report_child_work.dont_know", "report_child_vio_home.dont_know", 
+"report_child_vio_teach.dont_know", "report_child_vio_sex.dont_know", 
+"work_decide.dont_know", "marr_decide.dont_know")
+
+hh_spatial_corrected_yes_consent_df <- hh_spatial_corrected_yes_consent_df %>% mutate(
+  dontknow_prefer_not_to_ans_si = rowSums(hh_spatial_corrected_yes_consent_df[col_name_enu_si] =="dont_know",na.rm = T),
+dontknow_prefer_not_to_ans_multiple = rowSums(hh_spatial_corrected_yes_consent_df[col_name_enu_multiple] =="1",na.rm = T),
+rowsum_dont_know_enu = ( dontknow_prefer_not_to_ans_multiple + dontknow_prefer_not_to_ans_si))
+
+enu_records_dont_know <- hh_spatial_corrected_yes_consent_df %>% dplyr::filter(rowsum_dont_know_enu > 30) %>% select(reported_date, enumerator_id, X_uuid, New_Camp_N,rowsum_dont_know_enu)
+
+
+enu_records_dont_know %>% kable( longtable = T, booktabs = T, linesep = "",caption="Surveys that enumerators record “don’t know/prefer not to answer” for over half of the questions") %>% kable_styling(position = "center")
+```
+
+## General Checks
+### Missing/ Duplicated GPS
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+if(which(duplicated(hh$X_uuid)) %>% length()>0){ 
+  cat("there ARE duplicated uuids in hh dataset")} else{cat ("there are NO duplicated uuids in hh data set")} 
+```
+
+### Start and end day is not same 
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+start_end_date <- hh_spatial_corrected_yes_consent %>% as.data.frame() %>%  select(survey_start,end_survey,reported_date,X_uuid,enumerator_id) %>% mutate(
+  start_date = substr(hh_spatial_corrected_yes_consent$survey_start,1,10),
+  end_date = substr(hh_spatial_corrected_yes_consent$end_survey,1,10),
+  same_date = if_else(start_date == end_date,"yes","no")
+)
+
+not_same_date <- start_end_date %>% dplyr::filter(same_date == "no") %>% select(reported_date,enumerator_id,X_uuid,start_date,end_date) %>% dplyr::arrange(reported_date) 
+
+
+not_same_date %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Surveys that do not end on the same day they started") %>% kable_styling(position = "center")
+
+```
+
+### Check NAs
+NA response rates written to shared dropbox folder
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+dropbox_aux<-"C:\\Users\\MEHEDI\\Dropbox\\REACH_BGD\\REACH\\Ongoing\\70DYL - UNICEF (Child Protection)\\04 Data\\01_adolescent\\01_data_collection/aux_outputs/"
+dropbox_aux_na_path<-paste0(dropbox_aux,"NAresponses\\", str_replace_all(ymd(day_to_run),"-","_"))
+
+hh_na<-get_na_response_rates(hh)
+
+
+if(write_csv_output == "yes"){
+write.csv( hh_na,paste0(dropbox_aux_na_path, "_NA_response_hh.csv"))
+}
+
+```
+
+### Agree/disagree
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+col_names <- c("work_chores", "work_shelter", "work_phys_chores", "work_sibs", 
+"work_outside", "work_dang", "work_constr", "work_stop_school", 
+"marr_par", "marr_dowry", "marr_burden", "marr_safe", "marr_drop_school_girl", 
+"marr_drop_school_boy", "marr_old_man", "marr_mom", "vio_fath", 
+"vio_moth", "vio_discipline", "vio_husb", "vio_wife", "vio_teach", 
+"vio_solve_prob", "negl_misbehave", "negl_stress", "negl_needs"
+)
+
+hh_spatial_corrected_yes_consent_df <- hh_spatial_corrected_yes_consent %>% as.data.frame()
+
+hh_spatial_corrected_yes_consent_df$rowsum_agree <- rowSums(hh_spatial_corrected_yes_consent_df[col_names] == "agree",na.rm = T)
+
+hh_spatial_corrected_yes_consent_df$rowsum_dis_agree <- rowSums(hh_spatial_corrected_yes_consent_df[col_names] == "disagree",na.rm = T)
+
+hh_spatial_corrected_yes_consent_df$rowsum_dont_know <- rowSums(hh_spatial_corrected_yes_consent_df[col_names] == "dont_know",na.rm = T)
+
+ag_disag_dnkn <- hh_spatial_corrected_yes_consent_df %>% dplyr::filter(rowsum_agree >24 | rowsum_dis_agree > 24 |rowsum_dont_know >24 | rowsum_agree == rowsum_dis_agree) %>% select(reported_date,X_uuid,enumerator_id,rowsum_agree,rowsum_dis_agree,rowsum_dont_know)
+
+ag_disag_dnkn %>% kable( longtable = T, booktabs = T, linesep = "",caption= "Enumerators who have a clear pattern of responses to the agree/disagree questions across their surveys") %>% kable_styling(position = "center")
+
+```
+
+### Other response
+Other responses are written to shared dropbox folder
+```{r eval=TRUE, echo=FALSE, results='asis', warning=FALSE, messages=FALSE}
+
+  hh_other<-hh%>% 
+    filter_at(vars(ends_with("_other")), any_vars(!is.na(.))) %>% 
+    select(X_uuid,enumerator_id,reported_date, ends_with("_other"))
+if(write_csv_output == "yes"){
+write.csv(hh_other,paste0(dropbox_aux,"Otherresponse/",str_replace_all(day_to_run,"-","_"),"_Other.csv"))
+}
+```
