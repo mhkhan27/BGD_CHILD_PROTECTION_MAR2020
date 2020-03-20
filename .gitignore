@@ -8,3 +8,5 @@
 /Inputs/*
 /DAP/*
 
+!/Inputs/.gitkeep
+!/Output/.gitkeep
