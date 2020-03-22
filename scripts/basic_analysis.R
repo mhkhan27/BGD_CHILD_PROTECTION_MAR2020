@@ -55,13 +55,13 @@ if (population =="caregiver"){
 assessment<-load_questionnaire(data = data_for_analysis,questions = assess_survey,
 choices = assess_choices,choices.label.column.to.use = "label::english")
 
-# desentized_data ---------------------------------------------------------
+# desensitized_data ---------------------------------------------------------
 
 data_df <- data_for_analysis %>% as.data.frame() %>% select(-contains("geo")) %>% select(-contains("gps"))
 
 # butter ------------------------------------------------------------------
 
-pop<- read.csv("Inputs/201909_UNHCR_Pop.csv", stringsAsFactors = F, na.strings=c(""," "))
+pop<- read.csv("Inputs/pop_UNHCR_march_2020.csv", stringsAsFactors = F, na.strings=c(""," "))
 analysis_strata<-"regional_strata"
 sf_strata<-"Camp"
 sf_pop<- "Total.Families"
