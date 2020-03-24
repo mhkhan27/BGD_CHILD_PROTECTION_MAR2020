@@ -8,6 +8,8 @@ library(sf)
 library(sp)
 library(readr)
 library(stringr)
+library(AMR)
+library(naniar)
 
 population <-c("adolescent","caregiver")[2]
 write <-c("yes","no")[1]
@@ -15,21 +17,23 @@ write <-c("yes","no")[1]
 # data --------------------------------------------------------------------
 if (population == "adolescent"){
   hh <- read.csv("Inputs/adolescent/03_clean_data/hh.csv",stringsAsFactors = FALSE, 
-                 na.strings = c(""," ", "n/a",NA))
+                 na.strings = c(""," ", "n/a",NA,"Delete"))
   hh<-hh[rowSums(!is.na(hh[,-1]))>=1,]
   
   indv <- read.csv("Inputs/adolescent/03_clean_data/indv.csv",stringsAsFactors = FALSE, 
-                 na.strings = c(""," ", "n/a",NA))
+                 na.strings = c(""," ", "n/a",NA,"Delete"))
 }
 
 if (population == "caregiver"){
   hh <- read.csv("Inputs/caregiver/03_clean_data/hh.csv",stringsAsFactors = FALSE, 
-                 na.strings = c(""," ", "n/a",NA))
+                 na.strings = c(""," ", "n/a",NA,"Delete"))
   hh<-hh[rowSums(!is.na(hh[,-1]))>=1,]
   
   indv <- read.csv("Inputs/caregiver/03_clean_data/indv.csv",stringsAsFactors = FALSE, 
-                   na.strings = c(""," ", "n/a",NA))
+                   na.strings = c(""," ", "n/a",NA,"Delete"))
 }
+
+
 
 # colnames  ---------------------------------------------------------------
 some_primary <- c("elementary_school_standard_1", "elementary_school_standard_2",
@@ -39,8 +43,9 @@ primary_higher <- c("middle_school_standard_5", "middle_school_standard_6", "mid
                     "middle_school_standard_8", "high_school_standard_9","high_school_standard_10",
                     "tertiary_education")
 
-threats_safety_colnames<- c("threats_1","threats_2","threats_3","threats_6","threats_8","threats_9",
-                            "threats_14")
+threats_safety_colnames<- c("i.threats_1_some_always","i.threats_2_some_always","i.threats_3_some_always",
+                            "i.threats_6_some_always","i.threats_8_some_always","i.threats_9_some_always",
+                            "i.threats_14_some_always")
 
 adol_hh_chores_daily_life <- c("resp_activities_1","resp_activities_2","resp_activities_3","resp_activities_4",
                                "resp_activities_6")
@@ -105,11 +110,8 @@ final_data_hh <- hh %>% mutate(
                                      "always_concerned","yes","no",NULL), 
   i.threats_14_some_always =if_else(threats_14 == "sometimes_concerned" | threats_14 == 
                                      "always_concerned","yes","no",NULL), 
-  i.threats_harmful_practice = if_else(threats_4 == "yes" | threats_5 == "yes","yes","no",NULL),
-  i.threats_accidental = if_else(threats_10 == "yes" | threats_11 == "yes"| threats_12 == "yes" ,"yes","no",NULL),
-  
-  threat_safety_sum = rowSums(hh[threats_safety_colnames] == "yes"),
-  i.threats_safety = if_else( threat_safety_sum > 0 ,"yes","no"),
+  i.threats_harmful_practice = if_else(i.threats_4_some_always == "yes" & i.threats_5_some_always == "yes","yes","no",NULL),
+  i.threats_accidental = if_else(i.threats_10_some_always == "yes" | i.threats_11_some_always == "yes"| i.threats_12_some_always == "yes","yes","no",NULL),
   chores_acceptable_rowsum = rowSums(hh[chores] == "agree"),
   chores_unacceptable_rowsum = rowSums(hh[chores] == "disagree"),
   i.chores_acceptable = if_else(chores_acceptable_rowsum == 4, "yes","no",NULL),
@@ -138,11 +140,19 @@ final_data_hh <- hh %>% mutate(
                                                   vio_moth == "disagree" & vio_wife == "disagree","yes","no",NULL)
 )
 
+final_data_hh <- final_data_hh %>% mutate(
+  threat_safety_sum = rowSums(final_data_hh[threats_safety_colnames] == "yes"),
+  i.threats_safety = if_else( threat_safety_sum == 7 ,"yes","no"),
+)
+
 if(population == "adolescent") {
   final_data_hh_v2 <- final_data_hh %>% mutate(
     i.hh_no_formal_edu = if_else(edu_hoh == "none","yes","no",NULL),
-    i.hh_some_primary = if_else(edu_hoh %in% some_primary,"yes","no",NULL),
-    i.hh_primary_higher = if_else(edu_hoh %in% primary_higher,"yes","no",NULL),
+    i.hh_some_primary = if_else(is.na(edu_hoh),edu_hoh, 
+                                if_else(edu_hoh %in% some_primary,"yes","no",NULL)),
+    i.hh_primary_higher = if_else(is.na(edu_hoh),edu_hoh, 
+                                  if_else(edu_hoh %in% primary_higher,"yes","no",NULL)),
+    
     hh_chores_daily_life_rowsum = rowSums(hh[adol_hh_chores_daily_life] == "yes",na.rm = T),
     i.adol_hh_chores_daily_life = if_else(hh_chores_daily_life_rowsum >0 ,"yes","no",NULL),
     adol_attend_centre_learning_daily_life_rowsum = rowSums(hh[adol_attend_centre_learning_daily_life] == "yes",na.rm = T),
@@ -160,16 +170,16 @@ if(population == "adolescent") {
     i.working_hc = if_else(resp_activities_14 == "yes" & seek_treat_rowsum >0 ,"yes","no",NULL),
     i.working_edu =if_else(resp_activities_14 == "yes" & access_lc == "yes","yes","no",NULL),
     i.working_cp = if_else(resp_activities_14 == "yes" & access_cp == "yes","yes","no",NULL),
-    i.adol_not_seek_health_treatment_safety = if_else(not_seek_treat.not_feel_comfortable_at_the_health_center== "yes" |
-                                                        not_seek_treat.not_feel_comfortable == "yes","yes","no",NULL),
+    i.adol_not_seek_health_treatment_safety = if_else(not_seek_treat.not_feel_comfortable_at_the_health_center== 1 |
+                                                        not_seek_treat.not_feel_comfortable == 1,"yes","no",NULL),
     i.adol_not_seek_services_safety = if_else( i.adol_not_seek_health_treatment_safety == "yes"| 
-                                               child_protection_services.comfortable_walking_to_the_CFS.AFS == "yes"|
-                                                 attend_a_learning_center.comfortable_walking_to_the_learning_center == "yes",
+                                               child_protection_services.comfortable_walking_to_the_CFS.AFS == 1 |
+                                                 attend_a_learning_center.comfortable_walking_to_the_learning_center == 1,
                                                "yes","no",NULL),
                                                
-    i.adol_felt_unsafe_any_service = if_else(if_challenges_hc.i_didn.t_feel_safe == "yes" |
-                                              challenges_lc.i_didnt_feel_safe == "yes"|
-                                              challenges_cp.didnt_feel_safe == "yes","yes","no",NULL),
+    i.adol_felt_unsafe_any_service = if_else(if_challenges_hc.i_didn.t_feel_safe == 1 |
+                                              challenges_lc.i_didnt_feel_safe == 1 |
+                                              challenges_cp.didnt_feel_safe == 1 ,"yes","no",NULL),
  
     most_time_home_rowsum = rowSums(hh[most_time_home]),
     i.most_time_home = if_else(most_time_home_rowsum > 0,"yes","no",NULL),
@@ -187,8 +197,10 @@ if(population == "adolescent") {
 if(population == "caregiver") {
   final_data_hh_v2 <- final_data_hh %>% mutate(
     i.hh_no_formal_edu = if_else(resp_high_level_edu == "none","yes","no",NULL),
-    i.hh_some_primary = if_else(resp_high_level_edu %in% some_primary,"yes","no",NULL),
-    i.hh_primary_higher = if_else(resp_high_level_edu %in% primary_higher,"yes","no",NULL),
+    i.hh_some_primary = if_else(is.na(resp_high_level_edu),resp_high_level_edu, 
+                                if_else(resp_high_level_edu %in% some_primary,"yes","no",NULL)),
+    i.hh_primary_higher = if_else(is.na(resp_high_level_edu),resp_high_level_edu, 
+                                 if_else(resp_high_level_edu %in% primary_higher,"yes","no",NULL))
   )
 }
 
@@ -208,7 +220,7 @@ hh_to_indv <- join_data %>% group_by(X_uuid) %>% summarise(
 
 # combind -----------------------------------------------------------------
 
-final <- final_data_hh_v2 %>% left_join(hh_to_indv,by = "X_uuid")
+final <- final_data_hh_v2 %>% left_join(hh_to_indv,by = "X_uuid") %>% dplyr::select(-c(starts_with("X."),"X"))
 
 if (population == "adolescent"){
   
@@ -218,8 +230,8 @@ final <- final %>% mutate(
   i.take_care_fam_young = if_else(take_care_fam_young_condition == "yes" & 
                                     resp_act_three.take_care_of_family_members == 1 ,"yes","no",NULL),
   i.take_care_fam_eld = if_else(resp_act_three.take_care_of_family_members == 1 &
-                                  i.hh_elderly == "yes","yes","no",NULL)
-)
+                                  i.hh_elderly == "yes","yes","no",NULL) 
+) 
 }
 
 # write_csv ---------------------------------------------------------------

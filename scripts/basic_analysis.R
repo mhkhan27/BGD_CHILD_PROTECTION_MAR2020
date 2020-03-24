@@ -20,7 +20,7 @@ for (i in koboquest ){
 }
 
 create_csv <-c ("yes","no") [1]
-population <-c("adolescent","caregiver")[1]
+population <-c("adolescent","caregiver")[2]
 
 # data --------------------------------------------------------------------
 if (population =="adolescent"){
@@ -92,28 +92,6 @@ sf_with_weights<-df %>%
          survey_weight= (sample_strata_num/sample_global)/(!!sym(sf_pop)/pop_global)
   )
 
-# ######################for upazaila base weighting####################
-
-# sf_with_weights2<-df %>% 
-#   group_by(regional_strata) %>% 
-#   summarise(sample_strata_num=n())
-# 
-# sf_with_weightsv2 <- pop2 %>% dplyr::group_by(regional_strata) %>% dplyr::summarise(
-#   Total.Families = sum(Total.Families),
-#   Total.Individuals = sum(Total.Individuals)
-# ) %>% 
-#   right_join(sf_with_weights2, by= "regional_strata")
-# 
-# sf_with_weights3<-sf_with_weightsv2 %>% 
-#   group_by(regional_strata) %>% 
-# summarise(
-#     sample_strata_num = sum(sample_strata_num),
-#     Total.Families = sum(Total.Families)) %>% mutate(
-#       pop_global = sum(Total.Families),
-#     sample_global = sum(sample_strata_num),
-#     survey_weight= (sample_strata_num/sample_global)/(Total.Families/pop_global)
-#   )
-########################END########################
 
 df2<-df %>% left_join(sf_with_weights) %>% select(-contains("_Other"), -ends_with(".other"))
 
@@ -125,7 +103,7 @@ dfsvy$variables<- butteR::questionnaire_factorize_categorical(data = dfsvy$varia
 
 # colnames(df2) %>% dput() %>% dput
 
-dont_analyze<-c("X_uuid",  
+dont_analyze<-c("X_uuid",
                 "New_Camp_N", "survey_date", "survey_start", "deviceid", "end_survey", 
                 "instance_name", "enumerator_id", "enu_gen", "consent", "resp_age", "resp_gender", "resp_hoh", 
                 "gender_hoh", "age_of_household","how_resp_work_pay",
@@ -133,13 +111,6 @@ dont_analyze<-c("X_uuid",
                 "Total.Families", "Total.Individuals","X_id", "X_submission_time", "X_index", "reported_date", 
                 "District", "Settlement", "Union", "Name_Alias", "SSID", "Area_SqM", 
                 "Area_Acre", "xlab", "ylab", "Label")
-
-if (population == "adolescent"){
-  dont_analyze <- c("X.52",dont_analyze)
-}
-if (population == "caregiver"){
-  dont_analyze <- c("X","X.1",dont_analyze)
-}
 
 dont_analyze_in_data<-dont_analyze[dont_analyze %in% colnames(df2)]
 is_not_empty<-function(x){ all(is.na(x))==FALSE}
