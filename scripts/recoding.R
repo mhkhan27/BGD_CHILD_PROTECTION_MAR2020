@@ -172,13 +172,13 @@ if(population == "adolescent") {
     i.working_cp = if_else(resp_activities_14 == "yes" & access_cp == "yes","yes","no",NULL),
     i.adol_not_seek_health_treatment_safety = if_else(not_seek_treat.not_feel_comfortable_at_the_health_center== 1 |
                                                         not_seek_treat.not_feel_comfortable == 1,"yes","no",NULL),
-    i.adol_not_seek_services_safety = if_else( i.adol_not_seek_health_treatment_safety == "yes"| 
-                                               child_protection_services.comfortable_walking_to_the_CFS.AFS == 1 |
+    i.adol_not_seek_services_safety = if_else( i.adol_not_seek_health_treatment_safety == "yes"& 
+                                               child_protection_services.comfortable_walking_to_the_CFS.AFS == 1 &
                                                  attend_a_learning_center.comfortable_walking_to_the_learning_center == 1,
                                                "yes","no",NULL),
                                                
-    i.adol_felt_unsafe_any_service = if_else(if_challenges_hc.i_didn.t_feel_safe == 1 |
-                                              challenges_lc.i_didnt_feel_safe == 1 |
+    i.adol_felt_unsafe_any_service = if_else(if_challenges_hc.i_didn.t_feel_safe == 1 &
+                                              challenges_lc.i_didnt_feel_safe == 1 &
                                               challenges_cp.didnt_feel_safe == 1 ,"yes","no",NULL),
  
     most_time_home_rowsum = rowSums(hh[most_time_home]),

@@ -144,18 +144,20 @@ cols_to_analyze<-df2 %>% select(-starts_with("Other"), -ends_with(".other")) %>%
 # sapply(aaaa,unique)
 #############################################################################################3
 
-dfsvy$variables$i.threats_harmful_practice<- forcats::fct_expand(dfsvy$variables$i.threats_harmful_practice,c( "no", "yes"))
-dfsvy$variables$i.threats_accidental<- forcats::fct_expand(dfsvy$variables$i.threats_accidental,c("no", "yes"))
+# dfsvy$variables$i.threats_harmful_practice<- forcats::fct_expand(dfsvy$variables$i.threats_harmful_practice,c( "no", "yes"))
+# dfsvy$variables$i.threats_accidental<- forcats::fct_expand(dfsvy$variables$i.threats_accidental,c("no", "yes"))
 dfsvy$variables$i.threats_safety<- forcats::fct_expand(dfsvy$variables$i.threats_safety,c( "no", "yes"))
 
 if (population == "adolescent"){
   dfsvy$variables$i.work_unacceptable<- forcats::fct_expand(dfsvy$variables$i.work_unacceptable,c( "no", "yes"))
-  dfsvy$variables$i.hazardous_work_unacceptable<- forcats::fct_expand(dfsvy$variables$i.hazardous_work_unacceptable,c( "yes", "no"))
   dfsvy$variables$i.hazardous_work_acceptable<- forcats::fct_expand(dfsvy$variables$i.hazardous_work_acceptable,c( "no", "yes"))
   dfsvy$variables$i.early_marriage_acceptable<- forcats::fct_expand(dfsvy$variables$i.early_marriage_acceptable,c( "no", "yes"))
+  dfsvy$variables$i.adol_not_seek_services_safety<- forcats::fct_expand(dfsvy$variables$i.adol_not_seek_services_safety,c("no","yes"))
+  dfsvy$variables$i.adol_felt_unsafe_any_service<- forcats::fct_expand(dfsvy$variables$i.adol_felt_unsafe_any_service,c("no","yes"))
 }
 
 if (population == "caregiver"){
+  dfsvy$variables$threats_14<-forcats::fct_expand(dfsvy$variables$threats_14,c( "not_concerned", "99999"))
   dfsvy$variables$i.threats_14_some_always<-forcats::fct_expand(dfsvy$variables$i.threats_14_some_always,c( "no", "yes"))
   }
 
