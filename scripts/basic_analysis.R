@@ -65,11 +65,15 @@ pop<- read.csv("Inputs/pop_UNHCR_march_2020.csv", stringsAsFactors = F, na.strin
 analysis_strata<-"regional_strata"
 sf_strata<-"Camp"
 sf_pop<- "Total.Families"
-df_strata<- "New_Camp_N"
+df_strata<- "Upazila"
 
-df<-data_df 
+teknaf_camps <- c("Camp 21", "Camp 22", "Camp 23", "Camp 24", "Camp 25", "Camp 26", 
+                  "Camp 27","Nayapara RC")
+df<-data_df %>% dplyr::mutate(
+  Upazila = if_else(New_Camp_N %in% teknaf_camps, "Teknaf","Ukhiya",NULL))
 
 colnames1 <- df$New_Camp_N %>% unique %>% dput()
+
 
 pop2<-pop %>% 
   filter(!is.na(Camp),is.na(Block)) %>% 
@@ -81,15 +85,20 @@ pop2<-pop %>%
     Total.Individuals= readr::parse_number(Total.Individuals %>% stringr::str_replace_all(",",""))
   ) %>% filter(Camp %in% colnames1) #removing camp 12 and 18
 
+pop2 <- pop2 %>% dplyr::mutate(
+  Upazila = if_else(Camp %in% teknaf_camps, "Teknaf","Ukhiya",NULL)) %>% 
+  dplyr::group_by(Upazila) %>% dplyr::summarise(
+  Total.Families = sum(Total.Families),
+Total.Individuals =sum(Total.Individuals))
 
 
 sf_with_weights<-df %>% 
   group_by(!!sym(df_strata)) %>% 
   summarise(sample_strata_num=n()) %>% 
-  right_join(pop2, by=setNames(sf_strata,df_strata)) %>% mutate(
+  right_join(pop2, by="Upazila") %>% mutate(
     sample_global = sum(sample_strata_num),
          pop_global=sum(!!sym(sf_pop)),
-         survey_weight= (sample_strata_num/sample_global)/(!!sym(sf_pop)/pop_global)
+         survey_weight= (!!sym(sf_pop)/pop_global)/(sample_strata_num/sample_global)
   )
 
 
@@ -107,7 +116,7 @@ dont_analyze<-c("X_uuid",
                 "New_Camp_N", "survey_date", "survey_start", "deviceid", "end_survey", 
                 "instance_name", "enumerator_id", "enu_gen", "consent", "resp_age", "resp_gender", "resp_hoh", 
                 "gender_hoh", "age_of_household","how_resp_work_pay",
-                "sample_strata_num", "Upazila", "sample_global", "pop_global", "survey_weight",
+                "sample_strata_num", "upazilla", "sample_global", "pop_global", "survey_weight",
                 "Total.Families", "Total.Individuals","X_id", "X_submission_time", "X_index", "reported_date", 
                 "District", "Settlement", "Union", "Name_Alias", "SSID", "Area_SqM", 
                 "Area_Acre", "xlab", "ylab", "Label")
@@ -168,6 +177,8 @@ basic_analysis_strata<-butteR::mean_proportion_table(design = dfsvy,list_of_vari
 basic_analysis_gender<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = "resp_gender")
 if(population == "adolescent"){
 basic_analysis_married<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = "resp_marr")
+basic_analysis_age_15_17<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = "i.hh_resp_age_15_17")
+basic_analysis_age_15_17_gender<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = c("i.hh_resp_age_15_17","resp_gender"))
 basic_analysis_child<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = "resp_child")
 basic_analysis_activities14<-butteR::mean_proportion_table(design = dfsvy,list_of_variables = cols_to_analyze,aggregation_level = "resp_activities_14")
 }
@@ -183,5 +194,7 @@ if(population == "adolescent"){
   write.csv(basic_analysis_married,paste0(output_location,population,"_basic_analysis_married.csv"))
   write.csv(basic_analysis_child,paste0(output_location,population,"_basic_analysis_child.csv"))
   write.csv(basic_analysis_activities14,paste0(output_location,population,"_basic_analysis_activities14.csv"))
+  write.csv(basic_analysis_age_15_17,paste0(output_location,population,"_basic_analysis_age_15_17.csv"))
+  write.csv(basic_analysis_age_15_17_gender,paste0(output_location,population,"_basic_analysis_age_15_17_gender.csv"))
 }
   }

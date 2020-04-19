@@ -11,7 +11,7 @@ library(stringr)
 library(AMR)
 library(naniar)
 
-population <-c("adolescent","caregiver")[2]
+population <-c("adolescent","caregiver")[1]
 write <-c("yes","no")[1]
 
 # data --------------------------------------------------------------------
@@ -147,6 +147,7 @@ final_data_hh <- final_data_hh %>% mutate(
 
 if(population == "adolescent") {
   final_data_hh_v2 <- final_data_hh %>% mutate(
+    i.hh_resp_age_15_17= if_else(resp_age == 15 | resp_age == 16 |resp_age == 17 ,"yes","no",NULL),
     i.hh_no_formal_edu = if_else(edu_hoh == "none","yes","no",NULL),
     i.hh_some_primary = if_else(is.na(edu_hoh),edu_hoh, 
                                 if_else(edu_hoh %in% some_primary,"yes","no",NULL)),
